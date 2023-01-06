@@ -4,11 +4,12 @@ from sklearn.cluster import KMeans
 import numpy as np
 
 from lego_record import LegoRecord
+from read_features import read_features, read_features_as_np
 
 CSV_DELIMETER = ","
 CSV_ARRAY_DELIMETER = "|"
 NUM_OF_CLASSES = 432
-NUM_OF_STAGE_2_CLUTERS = 2
+NUM_OF_STAGE_2_CLUTERS = 3
 RESULT_FILENAME = "result.csv"
 
 
@@ -53,9 +54,7 @@ def clustering_stage_1(feature_array: np.ndarray) -> np.ndarray:
     return kmeans.labels_
 
 
-def get_features_of_label(
-    feature_array: np.ndarray, labels: np.ndarray, label: int
-) -> tuple[np.ndarray, np.ndarray]:
+def get_features_of_label(feature_array: np.ndarray, labels: np.ndarray, label: int) -> tuple[np.ndarray, np.ndarray]:
     """
     Get features that were qualified as given label, and their indices in original table
     """
@@ -65,9 +64,7 @@ def get_features_of_label(
     return features_of_label, indices_of_label
 
 
-def get_features_by_class(
-    feature_array: np.ndarray, labels: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+def get_features_by_class(feature_array: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Generator that returns array of features of subsequent labels, and their indices in original table
     (which is index in csv file as well)
@@ -103,16 +100,12 @@ def clustering_stage_2(feature_array: np.ndarray, labels: np.ndarray) -> np.ndar
     to_remove = np.empty(0)
     for features, indices in get_features_by_class(feature_array, labels):
         kmeans = perform_clustering(features, NUM_OF_STAGE_2_CLUTERS)
-        indices_of_least_popular = get_indices_of_least_popular(
-            labels=kmeans.labels_, original_indices=indices
-        )
+        indices_of_least_popular = get_indices_of_least_popular(labels=kmeans.labels_, original_indices=indices)
         to_remove = np.append(to_remove, indices_of_least_popular)
     return to_remove
 
 
-def save_result(
-    records: list[LegoRecord], labels: np.ndarray, to_remove_indices: np.ndarray
-) -> None:
+def save_result(records: list[LegoRecord], labels: np.ndarray, to_remove_indices: np.ndarray) -> None:
     with open(RESULT_FILENAME, "w") as f:
         for i, record in enumerate(records):
             if i in to_remove_indices:
@@ -122,8 +115,13 @@ def save_result(
 
 
 if __name__ == "__main__":
-    records = load_data_file("./data.csv")
-    feature_array = create_feature_array(records)
-    labels = clustering_stage_1(feature_array)
-    to_remove_indices = clustering_stage_2(feature_array, labels)
-    save_result(records, labels, to_remove_indices)
+
+    features, labels_original, paths = read_features_as_np("features_extracted")
+
+    labels = clustering_stage_1(features)
+    to_remove_indices = clustering_stage_2(features, labels)
+
+    labels_pairs = list(zip(labels, labels_original, paths))
+    filtered_pairs = [labels_pairs[i] for i in range(len(labels_pairs)) if i not in to_remove_indices]
+
+    # save_result(records, labels, to_remove_indices)
