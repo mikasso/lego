@@ -4,7 +4,9 @@ from sklearn.cluster import KMeans
 import numpy as np
 
 from lego_record import LegoRecord
-from read_features import read_features, read_features_as_np
+from read_features import read_features_as_np
+from restore import restore_all_imgs
+from matplotlib import pyplot as plt
 
 CSV_DELIMETER = ","
 CSV_ARRAY_DELIMETER = "|"
@@ -105,13 +107,21 @@ def clustering_stage_2(feature_array: np.ndarray, labels: np.ndarray) -> np.ndar
     return to_remove
 
 
-def save_result(records: list[LegoRecord], labels: np.ndarray, to_remove_indices: np.ndarray) -> None:
-    with open(RESULT_FILENAME, "w") as f:
-        for i, record in enumerate(records):
-            if i in to_remove_indices:
-                continue
-            record_with_label_str = f"{str(record)},{str(labels[i])}"
-            f.write(record_with_label_str + "\n")
+def get_result_histogram(label_pairs):
+    labels_dict = {}
+    for pair in label_pairs:
+        old_label = pair[1]
+        new_label = pair[0]
+        existing_set = labels_dict.get(old_label)
+        if existing_set is None:
+            labels_dict[old_label] = {new_label}
+        else:
+            existing_set.add(new_label)
+    sizes = [len(labels) for labels in labels_dict.values()]
+    sizes_np = np.asarray(sizes)
+    max_size = np.amax(sizes_np)
+    histogram, _ = np.histogram(sizes_np, bins=max_size)
+    return histogram
 
 
 if __name__ == "__main__":
@@ -124,4 +134,10 @@ if __name__ == "__main__":
     labels_pairs = list(zip(labels, labels_original, paths))
     filtered_pairs = [labels_pairs[i] for i in range(len(labels_pairs)) if i not in to_remove_indices]
 
-    # save_result(records, labels, to_remove_indices)
+    histogram = get_result_histogram(filtered_pairs)
+    plt.bar(range(0, len(histogram)), histogram)
+    plt.title("How many orignal labels are assigned to new labels")
+    plt.show()
+
+    print("Restoring paths")
+    restore_all_imgs(filtered_pairs)
