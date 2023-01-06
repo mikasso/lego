@@ -6,6 +6,7 @@ import numpy as np
 from lego_record import LegoRecord
 from read_features import read_features_as_np
 from restore import restore_all_imgs
+from metrics import print_metrics
 from matplotlib import pyplot as plt
 
 CSV_DELIMETER = ","
@@ -141,3 +142,7 @@ if __name__ == "__main__":
 
     print("Restoring paths")
     restore_all_imgs(filtered_pairs)
+    
+    print_metrics()
+    
+    
