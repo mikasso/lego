@@ -31,3 +31,6 @@ def read_features_as_np(features_dir: str) -> Tuple[np.ndarray, np.ndarray, np.n
 
 def read_labels(features_dir: str) -> np.ndarray:
     return joblib.load(os.path.join(features_dir, "labels.np"))
+
+
+features, labels, paths = read_features("features_extracted")
