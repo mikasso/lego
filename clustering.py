@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 CSV_DELIMETER = ","
 CSV_ARRAY_DELIMETER = "|"
 NUM_OF_CLASSES = 432
-NUM_OF_STAGE_2_CLUTERS = 5
+NUM_OF_STAGE_2_CLUTERS = 2
 RESULT_FILENAME = "result.csv"
 
 
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     print("Loading data")
     features, labels_original, paths = read_features_as_np("features_extracted")
 
-    for i in range(2, 6):
+    for i in range(2, 3):
 
         def log(info):
             if verbose:
@@ -172,3 +172,9 @@ if __name__ == "__main__":
         results.append((NUM_OF_STAGE_2_CLUTERS, metric, filtered_pairs))
 
     joblib.dump(results, "clusterin_results/results.d")
+
+
+# analiza jakosci 1 kminsa <- tez moze byc histogram
+# dla drugiego kmeans sprobowac minializowac odleglosci i dla tego k wziac wiekszy zbiór, k będzie inne dla kazedego folderu
+# statystki dla zmniejszenia zbiorow
+# na piatek tylko wyniki
