@@ -1,4 +1,5 @@
 import csv
+import joblib
 
 from sklearn.cluster import KMeans
 import numpy as np
@@ -6,13 +7,13 @@ import numpy as np
 from lego_record import LegoRecord
 from read_features import read_features_as_np
 from restore import restore_all_imgs
-from metrics import print_metrics
+from metrics import get_metric
 from matplotlib import pyplot as plt
 
 CSV_DELIMETER = ","
 CSV_ARRAY_DELIMETER = "|"
 NUM_OF_CLASSES = 432
-NUM_OF_STAGE_2_CLUTERS = 3
+NUM_OF_STAGE_2_CLUTERS = 5
 RESULT_FILENAME = "result.csv"
 
 
@@ -125,24 +126,49 @@ def get_result_histogram(label_pairs):
     return histogram
 
 
-if __name__ == "__main__":
-
-    features, labels_original, paths = read_features_as_np("features_extracted")
-
-    labels = clustering_stage_1(features)
-    to_remove_indices = clustering_stage_2(features, labels)
-
-    labels_pairs = list(zip(labels, labels_original, paths))
-    filtered_pairs = [labels_pairs[i] for i in range(len(labels_pairs)) if i not in to_remove_indices]
-
+def show_histogram(filtered_pairs):
     histogram = get_result_histogram(filtered_pairs)
     plt.bar(range(0, len(histogram)), histogram)
     plt.title("How many orignal labels are assigned to new labels")
     plt.show()
 
-    print("Restoring paths")
-    restore_all_imgs(filtered_pairs)
-    
-    print_metrics()
-    
-    
+
+def run_clustering(features, labels_original, paths):
+    labels = clustering_stage_1(features)
+    to_remove_indices = clustering_stage_2(features, labels)
+    labels_pairs = list(zip(labels, labels_original, paths))
+    filtered_pairs = [labels_pairs[i] for i in range(len(labels_pairs)) if i not in to_remove_indices]
+    return filtered_pairs
+
+
+if __name__ == "__main__":
+    verbose = True
+    calculate_metrics = True
+    draw_histogram = True
+    results = []
+    print("Loading data")
+    features, labels_original, paths = read_features_as_np("features_extracted")
+
+    for i in range(2, 6):
+
+        def log(info):
+            if verbose:
+                print(f"NUM_OF_STAGE_2_CLUTERS={i}: {info}")
+
+        log("Starting clustering")
+        NUM_OF_STAGE_2_CLUTERS = i
+        filtered_pairs = run_clustering(features, labels_original, paths)
+
+        if draw_histogram:
+            show_histogram(filtered_pairs)
+
+        metric = None
+        if calculate_metrics:
+            log("Restoring paths")
+            restore_all_imgs(filtered_pairs, verbose=True)
+            metric = get_metric()
+            log(f"Avg prevalence of the most numerous class: {get_metric()}")
+
+        results.append((NUM_OF_STAGE_2_CLUTERS, metric, filtered_pairs))
+
+    joblib.dump(results, "clusterin_results/results.d")
