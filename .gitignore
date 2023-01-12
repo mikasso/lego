@@ -4,3 +4,4 @@ features_extracted/
 /venv
 result/
 *.pyc
+clustering_results/

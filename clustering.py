@@ -1,50 +1,24 @@
-import csv
+from collections import Counter
+from dataclasses import dataclass
+import dataclasses
+import itertools
+from math import sqrt
+import operator
+import pandas as pd
+from typing import Generator, List, Tuple
+import joblib
 
 from sklearn.cluster import KMeans
 import numpy as np
 
-from lego_record import LegoRecord
 from read_features import read_features_as_np
-from restore import restore_all_imgs
-from metrics import print_metrics
 from matplotlib import pyplot as plt
 
-CSV_DELIMETER = ","
-CSV_ARRAY_DELIMETER = "|"
-NUM_OF_CLASSES = 432
-NUM_OF_STAGE_2_CLUTERS = 3
-RESULT_FILENAME = "result.csv"
+
+NUM_OF_LABELS = 432
 
 
-def data_row_to_record(row: list[str]) -> LegoRecord:
-    """
-    Get lego record from row read from csv
-    """
-    feature_strings = row[2].split(CSV_ARRAY_DELIMETER)
-    features = [int(feature_str) for feature_str in feature_strings]
-    return LegoRecord(path=row[0], label=row[1], features=features)
-
-
-def load_data_file(filename: str) -> list[LegoRecord]:
-    """
-    Load list of record as LegoRecord from given csv file
-    """
-    result = []
-    with open(filename) as f:
-        reader = csv.reader(f, delimiter=CSV_DELIMETER)
-        for row in reader:
-            result.append(data_row_to_record(row))
-    return result
-
-
-def create_feature_array(record_list: list[LegoRecord]) -> np.ndarray:
-    """
-    Create numpy array of features from LegoRecord object
-    """
-    return np.array([record.features for record in record_list])
-
-
-def perform_clustering(feature_array: np.ndarray, clusters: int):
+def perform_clustering(feature_array: np.ndarray, clusters: int) -> KMeans:
     """
     Perform clutering on given feature array, return kmeans object
     """
@@ -52,60 +26,20 @@ def perform_clustering(feature_array: np.ndarray, clusters: int):
     return kmeans
 
 
-def clustering_stage_1(feature_array: np.ndarray) -> np.ndarray:
-    kmeans = perform_clustering(feature_array, NUM_OF_CLASSES)
-    return kmeans.labels_
+def clustering_stage_1(feature_array: np.ndarray) -> KMeans:
+    kmeans = perform_clustering(feature_array, NUM_OF_LABELS)
+    return kmeans
 
 
-def get_features_of_label(feature_array: np.ndarray, labels: np.ndarray, label: int) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Get features that were qualified as given label, and their indices in original table
-    """
-    indices_of_label_2d = np.argwhere(labels == label)
-    indices_of_label = np.ravel(indices_of_label_2d)
-    features_of_label = [feature_array[i] for i in indices_of_label]
-    return features_of_label, indices_of_label
+def clustering_by_min_criteria(features: np.ndarray, criteria) -> KMeans:
+    kmeans_list = []
+    max_clusters = min(len(features), int((len(features) * 0.9) + 1))
+    for clusters in range(2, max_clusters):
+        kmeans = perform_clustering(features, clusters)
+        kmeans_list.append(kmeans)
 
-
-def get_features_by_class(feature_array: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Generator that returns array of features of subsequent labels, and their indices in original table
-    (which is index in csv file as well)
-    """
-    for label in range(NUM_OF_CLASSES):
-        yield get_features_of_label(feature_array, labels, label)
-
-
-def get_least_popular_label(labels: np.ndarray) -> int:
-    """
-    Get least popular label from the label list
-    """
-    histogram, _ = np.histogram(labels, bins=NUM_OF_STAGE_2_CLUTERS)
-    least_popular = np.argmin(histogram)
-    return least_popular
-
-
-def get_indices_of_least_popular(labels: np.ndarray, original_indices: np.ndarray):
-    """
-    Get indicies of features with least popular label. Return indices are indices in original array(based on csv file),
-    so that it can be determined, which lego records should be removed
-    """
-    least_popular_label = get_least_popular_label(labels)
-    indices_of_least_popular_2d = np.argwhere(labels == least_popular_label)
-    indices_of_least_popular = np.ravel(indices_of_least_popular_2d)
-    return [original_indices[i] for i in indices_of_least_popular]
-
-
-def clustering_stage_2(feature_array: np.ndarray, labels: np.ndarray) -> np.ndarray:
-    """
-    Iterate over labels and get indices of records that are to be removed (cause they are assigned to least popular label)
-    """
-    to_remove = np.empty(0)
-    for features, indices in get_features_by_class(feature_array, labels):
-        kmeans = perform_clustering(features, NUM_OF_STAGE_2_CLUTERS)
-        indices_of_least_popular = get_indices_of_least_popular(labels=kmeans.labels_, original_indices=indices)
-        to_remove = np.append(to_remove, indices_of_least_popular)
-    return to_remove
+    opt_kmeans = min(kmeans_list, key=criteria)
+    return opt_kmeans
 
 
 def get_result_histogram(label_pairs):
@@ -125,24 +59,120 @@ def get_result_histogram(label_pairs):
     return histogram
 
 
-if __name__ == "__main__":
-
-    features, labels_original, paths = read_features_as_np("features_extracted")
-
-    labels = clustering_stage_1(features)
-    to_remove_indices = clustering_stage_2(features, labels)
-
-    labels_pairs = list(zip(labels, labels_original, paths))
-    filtered_pairs = [labels_pairs[i] for i in range(len(labels_pairs)) if i not in to_remove_indices]
-
+def show_histogram(filtered_pairs):
     histogram = get_result_histogram(filtered_pairs)
     plt.bar(range(0, len(histogram)), histogram)
     plt.title("How many orignal labels are assigned to new labels")
     plt.show()
 
-    print("Restoring paths")
-    restore_all_imgs(filtered_pairs)
-    
-    print_metrics()
-    
-    
+
+@dataclass
+class KMeansStatistic:
+    predicted_label: int
+    dominant_label: str
+    count_of_all_items_assigned: int
+    dominant_occurences: int
+
+    def __init__(self, predicted_label: str, original_labels: List[str]):
+        count_of_all_items = len(original_labels)
+        dominant_label, dominant_occurences = Counter(original_labels).most_common(1)[0]
+        self.dominant_label = dominant_label
+        self.count_of_all_items_assigned = count_of_all_items
+        self.dominant_occurences = dominant_occurences
+        self.predicted_label = predicted_label
+
+
+def iterate_results_by_predicted(
+    result_tuples: List[Tuple[int, str, np.ndarray, str]]
+) -> Generator[Tuple[int, List[Tuple[int, str, np.ndarray, str]]], None, None]:
+    keyfunc = operator.itemgetter(0)
+    result_tuples = sorted(result_tuples, key=keyfunc)
+    it = itertools.groupby(result_tuples, key=keyfunc)
+    for predicted_label, tuples_it_for_predicted in it:
+        yield predicted_label, list(tuples_it_for_predicted)
+
+
+def get_kmeans_stats(result_tuples: List[Tuple[int, str, np.ndarray, str]]) -> List[KMeansStatistic]:
+    for predicted_label, tuples_for_predicted in iterate_results_by_predicted(result_tuples):
+        yield KMeansStatistic(predicted_label, [x[1] for x in tuples_for_predicted])
+
+
+def kmeans_stats_to_df(kmneans_stats: List[KMeansStatistic]) -> pd.DataFrame:
+    return pd.DataFrame.from_records(
+        [dataclasses.astuple(item) for item in kmneans_stats],
+        columns=["predicted label", "dominant orignal label", "all items", "dominant occurences"],
+    )
+
+
+def min_by_inertia(kmeans: KMeans) -> float:
+    return kmeans.inertia_
+
+
+def min_by_custom(kmeans: KMeans) -> float:
+    _, biggest_cluster_size = Counter(kmeans.labels_).most_common(1)[0]
+    samples_count = kmeans.cluster_centers_.shape[0]
+    return kmeans.inertia_ * kmeans.inertia_ / sqrt((biggest_cluster_size / samples_count))
+
+
+if __name__ == "__main__":
+    print("Loading data..")
+    input_features, input_original_labels, input_paths = read_features_as_np("features_extracted")
+    print("Data loaded")
+
+    print("Running kmeans 1")
+    kmeans1 = clustering_stage_1(input_features)
+    print("Kmeans1 completed")
+
+    print("Running kmeans2")
+    predicted_labels_1 = kmeans1.labels_
+    kmeans1_result_tuples = list(zip(predicted_labels_1, input_original_labels, input_features, input_paths))
+
+    kmeans2_stats = []
+    kmeans2_opt = []
+    kmeans2_result_tuples = []
+    to_iter = list(iterate_results_by_predicted(kmeans1_result_tuples))[0:3]
+    iterations = len(to_iter)
+    for idx, (predicted_label, tuples_for_predicted) in enumerate(to_iter):
+        print(f"Runnig kmeans2 stage: {idx}/{iterations}")
+        original_labels = [x[1] for x in tuples_for_predicted]
+        features = [x[2] for x in tuples_for_predicted]
+        paths = [x[3] for x in tuples_for_predicted]
+        kmeans2 = clustering_by_min_criteria(features, criteria=min_by_inertia)
+        # Filter out results, keep only for dominant original label
+        results = zip([predicted_label] * len(paths), kmeans2.labels_, original_labels, features, paths)
+        most_common_kmeans2_label, _ = Counter(kmeans2.labels_).most_common(1)[0]
+        filtered_results = list(filter(lambda result: result[1] == most_common_kmeans2_label, results))
+        filtered_original_labels = [x[2] for x in filtered_results]
+        # Save results from kmeans2 stage
+        kmeans2_result_tuples.extend(filtered_results)
+        kmeans2_stats.append(KMeansStatistic(predicted_label, filtered_original_labels))
+        kmeans2_opt.append(tuple([kmeans2.cluster_centers_.shape[0], kmeans2.inertia_]))
+
+    print(f"Kmeans2 completed")
+
+    print(f"Gathering stats")
+    kmeans1_stats = list(get_kmeans_stats(kmeans1_result_tuples))
+    df_kmeans1 = kmeans_stats_to_df(kmeans1_stats)
+    print(df_kmeans1)
+
+    df_kmeans2 = kmeans_stats_to_df(kmeans2_stats)
+    print(df_kmeans2)
+
+    df_kmeans_opt = pd.DataFrame.from_records(
+        [item for item in kmeans2_opt],
+        columns=["k", "inertia"],
+    )
+    print(df_kmeans_opt)
+
+    print(f"Saving results")
+    joblib.dump(kmeans1_result_tuples, "clustering_results/kmeans1.d")
+    joblib.dump(kmeans2_result_tuples, "clustering_results/kmeans2.d")
+    df_kmeans_opt.to_csv("clustering_results/kmenas_opt.csv")
+    df_kmeans1.to_csv("clustering_results/kmeans1.csv")
+    df_kmeans2.to_csv("clustering_results/kmeans2.csv")
+
+
+# analiza jakosci 1 kminsa <- tez moze byc histogram
+# dla drugiego kmeans sprobowac minializowac odleglosci i dla tego k wziac wiekszy zbiór, k będzie inne dla kazedego folderu
+# statystki dla zmniejszenia zbiorow
+# na piatek tylko wyniki
