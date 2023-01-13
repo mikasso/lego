@@ -5,3 +5,5 @@ features_extracted/
 result/
 *.pyc
 clustering_results/
+clustering_1/
+clustering_2/
