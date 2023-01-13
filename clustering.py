@@ -33,7 +33,7 @@ def clustering_stage_1(feature_array: np.ndarray) -> KMeans:
 
 def clustering_by_min_criteria(features: np.ndarray, criteria) -> KMeans:
     kmeans_list = []
-    max_clusters = min(len(features), int((len(features) * 0.9) + 1))
+    max_clusters = 3  # min(len(features), int((len(features) * 0.9) + 1))
     for clusters in range(2, max_clusters):
         kmeans = perform_clustering(features, clusters)
         kmeans_list.append(kmeans)
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     kmeans2_stats = []
     kmeans2_opt = []
     kmeans2_result_tuples = []
-    to_iter = list(iterate_results_by_predicted(kmeans1_result_tuples))[0:3]
+    to_iter = list(iterate_results_by_predicted(kmeans1_result_tuples))
     iterations = len(to_iter)
     for idx, (predicted_label, tuples_for_predicted) in enumerate(to_iter):
         print(f"Runnig kmeans2 stage: {idx}/{iterations}")
