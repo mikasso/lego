@@ -13,7 +13,14 @@ from clustering_stage_2 import get_kMeans1Results_iterator_grouped_by_predicted_
 
 @dataclass
 class KMeans2Result:
+    """
+    predicted_label - label after first kmeans - aka folder
+    """
+
     predicted_label: int
+    """
+    predicted_label_2 - label after second kmenas, in general not used for statistics but needed for internal uses cutting etc.
+    """
     predicted_label_2: int
     original_label: str
     features: np.ndarray
