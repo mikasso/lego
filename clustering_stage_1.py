@@ -53,6 +53,14 @@ def get_kmeans_stats(result_tuples: List[Tuple[int, str, np.ndarray, str]]) -> L
 
 
 def kmeans_stats_to_df(kmneans_stats: List[KMeansStatistic]) -> pd.DataFrame:
+    """
+    Return dataframe from kmneans_stats list
+    predicted label - aka folder after first clustering
+    dominant original label - true label which is dominant in the folder
+    dominant occurences
+    samples - number of samples used during clustering
+    k_expected - is also actual number of unique true labels
+    """
     return pd.DataFrame.from_records(
         [dataclasses.astuple(item) for item in kmneans_stats],
         columns=["predicted label", "dominant orignal label", "samples", "dominant occurences", "k_expected"],
@@ -65,6 +73,11 @@ class KMeans1Result:
     original_label: str
     features: np.ndarray
     path: str
+
+
+def read_kmeans1_results(path: str) -> List[KMeans1Result]:
+    kMeans1Results = joblib.load(path)
+    return kMeans1Results
 
 
 if __name__ == "__main__":
@@ -83,15 +96,15 @@ if __name__ == "__main__":
 
     print(f"Gathering stats")
     kmeans1_stats = list(get_kmeans_stats(kmeans1_result_tuples))
-    df_kmeans1 = kmeans_stats_to_df(kmeans1_stats)
-    print(df_kmeans1)
+    df_kmeans1_stats = kmeans_stats_to_df(kmeans1_stats)
+    print(df_kmeans1_stats)
 
     print("Saving Results")
 
     kMeans1Results = [KMeans1Result(x[0], x[1], x[2], x[3]) for x in kmeans1_result_tuples]
     joblib.dump(kMeans1Results, "clustering_1/kmeans1_results.d")
-    df_kmeans1.to_csv("clustering_1/table.csv")
+    df_kmeans1_stats.to_csv("clustering_1/kmeans_stats.csv")
 
-    f = open("clustering_1/metrics.txt", "a")
+    f = open("clustering_1/inertia.txt", "w")
     f.write(f"Inertia = {kmeans1.inertia_}")
     f.close()

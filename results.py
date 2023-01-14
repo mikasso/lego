@@ -4,7 +4,32 @@ import matplotlib.pyplot as plt
 from matplotlib import pyplot as plt
 import numpy as np
 
-from clustering import get_result_histogram
+
+# functions that we used in the past to visualize some shit..
+
+
+def get_result_histogram(label_pairs):
+    labels_dict = {}
+    for pair in label_pairs:
+        old_label = pair[1]
+        new_label = pair[0]
+        existing_set = labels_dict.get(old_label)
+        if existing_set is None:
+            labels_dict[old_label] = {new_label}
+        else:
+            existing_set.add(new_label)
+    sizes = [len(labels) for labels in labels_dict.values()]
+    sizes_np = np.asarray(sizes)
+    max_size = np.amax(sizes_np)
+    histogram, _ = np.histogram(sizes_np, bins=max_size)
+    return histogram
+
+
+def show_histogram(filtered_pairs):
+    histogram = get_result_histogram(filtered_pairs)
+    plt.bar(range(0, len(histogram)), histogram)
+    plt.title("How many orignal labels are assigned to new labels")
+    plt.show()
 
 
 def bar_plot(ax, data, colors=None, total_width=0.8, single_width=1, legend=True):
@@ -71,29 +96,3 @@ def bar_plot(ax, data, colors=None, total_width=0.8, single_width=1, legend=True
     # Draw legend if we need
     if legend:
         ax.legend(bars, data.keys())
-
-
-if __name__ == "__main__":
-    results = joblib.load("clusterin_results/results.d")
-    num_of_clusters, metrics, filtered_pairs = [list(t) for t in zip(*results)]
-    histograms = list(map(get_result_histogram, filtered_pairs))
-    max_length = len(max(histograms, key=lambda x: len(x)))
-    histograms = [
-        np.concatenate([histogram, np.zeros(max_length - len(histogram), dtype=np.int64)])
-        if len(histogram) < max_length
-        else histogram
-        for histogram in histograms
-    ]
-    data = dict(zip(num_of_clusters, histograms))
-    fig, ax = plt.subplots()
-    bar_plot(ax, data, total_width=0.8, single_width=0.9)
-    plt.show()
-
-    max_index, _ = max(enumerate(metrics), key=lambda x: x[1])
-    plt.scatter(num_of_clusters, metrics)
-    plt.title("Metrics per num of cluster in 2 stage")
-    plt.xlabel("num of cluster")
-    plt.ylabel("metric")
-    plt.show()
-
-    print(f"Best metric {metrics[max_index]} for NUM_OF_STAGE_2_CLUTERS={num_of_clusters[max_index]}")

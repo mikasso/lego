@@ -7,3 +7,5 @@ result/
 clustering_results/
 clustering_1/
 clustering_2/
+clustering_with_best_k/
+*.7z
