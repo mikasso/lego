@@ -1,22 +1,17 @@
 from collections import Counter
 from dataclasses import dataclass
-import dataclasses
 import itertools
 from math import sqrt
-import operator
 import pandas as pd
-from typing import Generator, List, Tuple
+from typing import List
 import joblib
 from sklearn.metrics import silhouette_score
 
 from sklearn.cluster import KMeans
 import numpy as np
-from clustering_stage_1 import KMeans1Result, KMeansStatistic, kmeans_stats_to_df
+from clustering_stage_1 import NUM_OF_LABELS, KMeans1Result, KMeansStatistic, kmeans_stats_to_df
 
 from matplotlib import pyplot as plt
-
-
-NUM_OF_LABELS = 432
 
 
 def clustering_for_all_k(features: np.ndarray) -> List[KMeans]:
@@ -99,32 +94,29 @@ def get_statistics(kmeans_list: List[KMeans], features_array: np.ndarray) -> pd.
     inertias = []
     k_values = []
     silhouette_scores = []
-    adjusted_silhouette_scores = []
-    adjusted_inertias = []
+    biggest_cluster_sizes = []
+    samples_counts = [len(features_array)] * len(kmeans_list)
     for kmeans in kmeans_list:
         k_values.append(kmeans.n_clusters)
         inertias.append(kmeans.inertia_)
         silhouette_score_value = silhouette_score(features_array, kmeans.labels_, metric="euclidean")
         silhouette_scores.append(silhouette_score_value)
         _, biggest_cluster_size = Counter(kmeans.labels_).most_common(1)[0]
-        samples_count = len(features_array)
-        ratio = pow(float(biggest_cluster_size) / samples_count, 2)
-        adjusted_silhouette_scores.append(silhouette_score_value / ratio)
-        adjusted_inertias.append(kmeans.inertia_ / ratio)
+        biggest_cluster_sizes.append(biggest_cluster_size)
 
     return pd.DataFrame(
         {
             "k": k_values,
             "inertia": inertias,
             "silhouette_score": silhouette_scores,
-            "adj_inertia": adjusted_inertias,
-            "adj_silhouette_score": adjusted_silhouette_scores,
+            "biggest_cluster_size": biggest_cluster_sizes,
+            "samples_count": samples_counts,
         }
     )
 
 
 def find_best_k(df: pd.DataFrame, metric="silhouette_score") -> int:
-    row = df[df[metric] == df[metric].min()]
+    row = df[df[metric] == df[metric].max()]
     return row["k"].iloc[0]
 
 
@@ -167,7 +159,6 @@ if __name__ == "__main__":
         kmeans2_stats.append(KMeansStatistic(predicted_label, filtered_original_labels))
         kmeans2_opt.append(tuple([best_kmeans.cluster_centers_.shape[0], best_kmeans.inertia_]))
         kmeans2_statics_df_list.append(kmeans2_statics_df)
-        break
 
     print(f"Kmeans2 completed")
 
@@ -188,6 +179,7 @@ if __name__ == "__main__":
     for idx, df in enumerate(kmeans2_statics_df_list):
         df.to_csv(f"clustering_2/per_label/{idx}.csv")
 
+# TODO podzielic skrypt tak zeby Piotr mogl ziamplentowac find_best_k przy uzyciu istniejacych csv bez ponownego mielenia
 
 # analiza jakosci 1 kminsa <- tez moze byc histogram
 # dla drugiego kmeans sprobowac minializowac odleglosci i dla tego k wziac wiekszy zbiór, k będzie inne dla kazedego folderu
