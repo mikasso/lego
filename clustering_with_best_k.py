@@ -34,9 +34,7 @@ class KMeans2Result:
     path: str
 
 
-def get_filtered_result(
-    best_kmeans: KMeans, results: List[KMeans2Result]
-) -> List[KMeans2Result]:
+def get_filtered_result(best_kmeans: KMeans, results: List[KMeans2Result]) -> List[KMeans2Result]:
     most_common_kmeans2_label, _ = Counter(best_kmeans.labels_).most_common(1)[0]
     filtered_results = list(
         filter(
@@ -57,9 +55,7 @@ def get_kmeans2_results(
     for predicted_label_2, original_label, features, path in zip(
         predicted_labels_2, original_labels, features_array, paths
     ):
-        yield KMeans2Result(
-            predicted_label, predicted_label_2, original_label, features, path
-        )
+        yield KMeans2Result(predicted_label, predicted_label_2, original_label, features, path)
 
 
 def load_statistics(path: str) -> pd.DataFrame:
@@ -101,6 +97,7 @@ if __name__ == "__main__":
 
     stats_list = []
     used_k_list = []
+    inertia_list = []
     results_list = []
 
     iterator = get_kMeans1Results_iterator_grouped_by_predicted_label(kMeans1Results)
@@ -111,16 +108,12 @@ if __name__ == "__main__":
         features_array = [x.features for x in kmeans1ResultsInner]
         paths = [x.path for x in kmeans1ResultsInner]
 
-        kmeans2_statics_df = load_statistics(
-            f"clustering_2/per_label/{predicted_label}.csv"
-        )
+        kmeans2_statics_df = load_statistics(f"clustering_2/per_label/{predicted_label}.csv")
         best_k = find_best_k(kmeans2_statics_df, metric="inertia")
         best_kmeans = KMeans(n_clusters=best_k, n_init="auto").fit(features_array)
 
         # Filter out results, keep only for dominant original label
-        results = get_kmeans2_results(
-            predicted_label, best_kmeans.labels_, original_labels, features_array, paths
-        )
+        results = get_kmeans2_results(predicted_label, best_kmeans.labels_, original_labels, features_array, paths)
         filtered_results = get_filtered_result(best_kmeans, list(results))
         filtered_original_labels = [x.original_label for x in filtered_results]
 
@@ -128,13 +121,15 @@ if __name__ == "__main__":
         results_list.extend(filtered_results)
         stats_list.append(KMeansStatistic(predicted_label, filtered_original_labels))
         used_k_list.append(best_k)
+        inertia_list.append(best_kmeans.inertia_)
 
     print("Clustering with best k completed")
 
     print("Gathering statistics")
     df_stats = kmeans_stats_to_df(stats_list)
     df_stats["used_k"] = used_k_list
+    df_stats["inertia"] = inertia_list
 
     print(f"Saving results")
     joblib.dump(results_list, "clustering_with_best_k/kmeans_results.d")
-    df_stats.to_csv("clustering_with_best_k/kmeans_stats.csv")
+    df_stats.to_csv("clustering_with_best_k/kmeans_stats.csv", index=False)
